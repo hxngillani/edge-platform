@@ -1,17 +1,18 @@
-- name: Set kubeconfig
-  set_fact:
-    kubeconfig: /etc/rancher/rke2/rke2.yaml
-
 - name: Install Metrics Server
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
   shell: |
-    KUBECONFIG={{ kubeconfig }} kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-  args: { warn: false }
+    kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
-- name: Install local-path-provisioner
+- name: Install local-path-provisioner (default StorageClass)
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
   shell: |
-    KUBECONFIG={{ kubeconfig }} kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
-    KUBECONFIG={{ kubeconfig }} kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+    kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+    kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 
 - name: Install ingress-nginx
+  environment:
+    KUBECONFIG: /etc/rancher/rke2/rke2.yaml
   shell: |
-    KUBECONFIG={{ kubeconfig }} kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.1/deploy/static/provider/cloud/deploy.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.1/deploy/static/provider/cloud/deploy.yaml
