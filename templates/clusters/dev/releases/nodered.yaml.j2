@@ -1,54 +1,87 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: nodered, namespace: {{ edge.namespaces.iot }} }
+metadata:
+  name: nodered
+  namespace: {{ edge.namespaces.iot }}
 spec:
   replicas: 1
-  selector: { matchLabels: { app: nodered } }
+  selector:
+    matchLabels:
+      app: nodered
   template:
-    metadata: { labels: { app: nodered } }
+    metadata:
+      labels:
+        app: nodered
     spec:
       containers:
-      - name: nodered
-        image: nodered/node-red:3
-        ports: [{ containerPort: 1880 }]
-        env:
-          - { name: TZ, value: "{{ edge.nodered.tz }}" }
-          - { name: INFLUX_URL, value: "http://influxdb2.{{ edge.namespaces.obs }}.svc.cluster.local:8086" }
-          - { name: INFLUX_ORG, value: "{{ edge.influxdb.org }}" }
-          - { name: INFLUX_BUCKET, value: "{{ edge.influxdb.bucket }}" }
-          - { name: INFLUX_TOKEN, value: "{{ edge.influxdb.token }}" }
-          - { name: WRITE_PRECISION, value: "{{ edge.nodered.write.precision }}" }
-        volumeMounts:
-          - { name: data,  mountPath: /data }
-          - { name: flows, mountPath: /data/flows.json, subPath: flows.json }
-        readinessProbe:
-          httpGet: { path: /, port: 1880 }
-          initialDelaySeconds: 10
-          periodSeconds: 10
+        - name: nodered
+          image: {{ edge.nodered.image | default('docker.io/nodered/node-red') }}:{{ edge.nodered.tag | default('latest') }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 1880
+          env:
+            - name: TZ
+              value: "{{ edge.nodered.tz }}"
+            - name: INFLUX_URL
+              value: "http://influxdb2.{{ edge.namespaces.obs }}.svc.cluster.local:8086"
+            - name: INFLUX_ORG
+              value: "{{ edge.influxdb.org }}"
+            - name: INFLUX_BUCKET
+              value: "{{ edge.influxdb.bucket }}"
+            - name: INFLUX_TOKEN
+              value: "{{ edge.influxdb.token }}"
+            - name: WRITE_PRECISION
+              value: "{{ edge.nodered.write.precision }}"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: flows
+              mountPath: /data/flows.json
+              subPath: flows.json
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 1880
+            initialDelaySeconds: 10
+            periodSeconds: 10
       volumes:
         - name: data
-          persistentVolumeClaim: { claimName: nodered-data }
+          persistentVolumeClaim:
+            claimName: nodered-data
         - name: flows
-          configMap: { name: nodered-flows }
+          configMap:
+            name: nodered-flows
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
-metadata: { name: nodered-data, namespace: {{ edge.namespaces.iot }} }
+metadata:
+  name: nodered-data
+  namespace: {{ edge.namespaces.iot }}
 spec:
-  accessModes: [ ReadWriteOnce ]
-  resources: { requests: { storage: {{ edge.nodered.persist_size }} } }
+  accessModes: [ "ReadWriteOnce" ]
+  resources:
+    requests:
+      storage: {{ edge.nodered.persist_size }}
   storageClassName: local-path
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: nodered, namespace: {{ edge.namespaces.iot }} }
+metadata:
+  name: nodered
+  namespace: {{ edge.namespaces.iot }}
 spec:
-  selector: { app: nodered }
-  ports: [{ name: http, port: 1880, targetPort: 1880 }]
+  selector:
+    app: nodered
+  ports:
+    - name: http
+      port: 1880
+      targetPort: 1880
 ---
 apiVersion: v1
 kind: ConfigMap
-metadata: { name: nodered-flows, namespace: {{ edge.namespaces.iot }} }
+metadata:
+  name: nodered-flows
+  namespace: {{ edge.namespaces.iot }}
 data:
   flows.json: |
-{{ lookup('file', '../provisioning/nodered/flows.json') | indent(4) }}
+    {{ lookup('file', '../provisioning/nodered/flows.json') | indent(4) }}
