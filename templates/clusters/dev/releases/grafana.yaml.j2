@@ -18,12 +18,10 @@ spec:
     adminUser: {{ edge.grafana.admin_user }}
     adminPassword: {{ edge.grafana.admin_password }}
 
-    # Persist Grafana data (dashboards saved via UI). PVC can be re-enabled/disabled here.
     persistence:
       enabled: true
       size: 5Gi
 
-    # Avoid init chown (often fails with local-path PVCs); use fsGroup instead.
     initChownData:
       enabled: false
     podSecurityContext:
@@ -34,7 +32,7 @@ spec:
       runAsGroup: 472
       allowPrivilegeEscalation: false
 
-    # Provision the InfluxDB(Flux) datasource via values (GitOps, no UI edits).
+    # === Datasource (InfluxDB Flux) ===
     datasources:
       datasources.yaml:
         apiVersion: 1
@@ -51,19 +49,35 @@ spec:
             secureJsonData:
               token: {{ edge.influxdb.token | default('') }}
 
-    # Auto-provision a basic dashboard with cpu_temp & hailo_temp
-    dashboardsProvider:
-      enabled: true
-      providers:
-        - name: 'default'
-          orgId: 1
+    # === Load dashboards from ConfigMaps via sidecar ===
+    sidecar:
+      dashboards:
+        enabled: true
+        searchNamespace: ALL
+        folder: /var/lib/grafana/dashboards/default
+        provider:
+          name: 'default'
+          org: 1
           folder: ''
           type: file
-          disableDeletion: false
-          editable: true
-          options:
-            path: /var/lib/grafana/dashboards/default
+          disableDelete: false
+          allowUiUpdates: true
 
+    # The chart expects "dashboardProviders" (plural), not dashboardsProvider
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: 'default'
+            orgId: 1
+            folder: ''
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/default
+
+    # This creates a ConfigMap labeled grafana_dashboard=1 that the sidecar will load.
     dashboards:
       default:
         edge-telemetry:
