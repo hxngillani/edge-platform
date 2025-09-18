@@ -1,12 +1,65 @@
+{# Build the function body once, then substitute per-topic and JSON-escape it #}
+{% set FUNC -%}
+const m = msg.payload || {};
+const v = Number(m?.fields?.__VALFIELD__ ?? m.__VALFIELD__ ?? m.value ?? msg.payload);
+let ts = new Date();
+const raw = m.timestamp;
+if (raw !== undefined) {
+  const n = Number(raw);
+  if (!isNaN(n)) { ts = new Date(n < 1e12 ? n * 1000 : n); }
+  else { ts = new Date(raw); }
+}
+const tags = m.tags || {};
+const meas = '__MEAS__';
+const tagPairs = [];
+const include = [ {% for k in edge.nodered.write.include_tags | default([]) %}'{{k}}'{% if not loop.last %}, {% endif %}{% endfor %} ];
+include.forEach(k => { if (tags[k]) tagPairs.push(`${k}=${String(tags[k]).replace(/[,= ]/g,'_')}`); });
+const fields = [`value=${v}`];
+const epoch = Math.floor(ts.getTime() / 1000);
+msg.headers = { 'Authorization': 'Token ' + env.get('INFLUX_TOKEN'), 'Content-Type':'text/plain; charset=utf-8' };
+msg.url = `${env.get('INFLUX_URL')}/api/v2/write?org=${encodeURIComponent(env.get('INFLUX_ORG'))}&bucket=${encodeURIComponent(env.get('INFLUX_BUCKET'))}&precision=${env.get('WRITE_PRECISION')}`;
+msg.payload = `${meas}${tagPairs.length ? ',' + tagPairs.join(',') : ''} ${fields.join(',')} ${epoch}`;
+return msg;
+{%- endset %}
+
 [
-  {"id":"tab","type":"tab","label":"Pipeline"},
-  {"id":"httpw","type":"http request","z":"tab","name":"Influx Write","method":"POST","ret":"txt","paytoqs":false,"url":"","tls":"","persist":false,"proxy":""}
-{% for t in edge.nodered.topics %}
-  ,{"id":"mqtt_in_{{ loop.index0 }}","type":"mqtt in","z":"tab","name":"{{ t.name }}","topic":"{{ t.topic }}","qos":"1","datatype":"auto","broker":"b1","wires":[["parse_{{ loop.index0 }}"]]}
-  ,{"id":"parse_{{ loop.index0 }}","type":"json","z":"tab","wires":[["shape_{{ loop.index0 }}","dbg_raw_{{ loop.index0 }}"]]}
-  ,{"id":"shape_{{ loop.index0 }}","type":"function","z":"tab","name":"shape","func":"const m=msg.payload||{};const v=Number(m?.fields?.{{ t.value_field }} ?? m.{{ t.value_field }} ?? m.value ?? msg.payload);let ts=new Date();const raw=m.timestamp; if(raw!==undefined){const n=Number(raw); if(!isNaN(n)){ts=new Date(n<1e12?n*1000:n);} else {ts=new Date(raw);} } const tags=m.tags||{}; const meas='{{ t.measurement }}'; const tagPairs=[]; const include={{ edge.nodered.write.include_tags | tojson }}; include.forEach(k=>{ if(tags[k]) tagPairs.push(`${k}=${String(tags[k]).replace(/[,= ]/g,'_')}`); }); const fields=[`value=${v}`]; const epoch=Math.floor(ts.getTime()/1000); msg.headers={ 'Authorization': 'Token '+env.get('INFLUX_TOKEN'), 'Content-Type':'text/plain; charset=utf-8'}; msg.url = `${env.get('INFLUX_URL')}/api/v2/write?org=${encodeURIComponent(env.get('INFLUX_ORG'))}&bucket=${encodeURIComponent(env.get('INFLUX_BUCKET'))}&precision=${env.get('WRITE_PRECISION')}`; msg.payload = `${meas}${tagPairs.length?','+tagPairs.join(','):''} ${fields.join(',')} ${epoch}`; return msg;","wires":[["httpw","dbg_shaped_{{ loop.index0 }}"]]}
-  ,{"id":"dbg_raw_{{ loop.index0 }}","type":"debug","z":"tab","name":"RAW {{ t.name }}","active":true}
-  ,{"id":"dbg_shaped_{{ loop.index0 }}","type":"debug","z":"tab","name":"SHAPED {{ t.name }}","active":true}
-{% endfor %}
-  ,{"id":"b1","type":"mqtt-broker","name":"Mosquitto","broker":"mosquitto.{{ edge.namespaces.iot }}.svc.cluster.local","port":"{{ edge.mqtt.port }}"}
+  {{ {"id":"tab_unified","type":"tab","label":"Pipeline"} | tojson }},
+  {{ {"id":"httpw","type":"http request","z":"tab_unified","name":"Influx Write","method":"POST","ret":"txt","paytoqs":False,"url":"","tls":"","persist":False,"proxy":""} | tojson }}
+  {% for t in edge.nodered.topics %}
+  ,{%- set code = (FUNC | replace('__MEAS__', t.measurement) | replace('__VALFIELD__', t.value_field)) -%}
+  {{ {
+      "id": "mqtt_in_" ~ loop.index0,
+      "type": "mqtt in",
+      "z": "tab_unified",
+      "name": t.name,
+      "topic": t.topic,
+      "qos": "1",
+      "datatype": "auto",
+      "broker": "b1",
+      "wires": [["parse_" ~ loop.index0]]
+    } | tojson }}
+  ,{{ {
+      "id": "parse_" ~ loop.index0,
+      "type": "json",
+      "z": "tab_unified",
+      "wires": [["shape_" ~ loop.index0, "dbg_raw_" ~ loop.index0]]
+    } | tojson }}
+  ,{{ {
+      "id": "shape_" ~ loop.index0,
+      "type": "function",
+      "z": "tab_unified",
+      "name": "shape",
+      "func": code,
+      "wires": [["httpw", "dbg_shaped_" ~ loop.index0]]
+    } | tojson }}
+  ,{{ {"id":"dbg_raw_" ~ loop.index0,"type":"debug","z":"tab_unified","name":"RAW " ~ t.name,"active":True} | tojson }}
+  ,{{ {"id":"dbg_shaped_" ~ loop.index0,"type":"debug","z":"tab_unified","name":"SHAPED " ~ t.name,"active":True} | tojson }}
+  {% endfor %}
+  ,{{ {
+      "id":"b1",
+      "type":"mqtt-broker",
+      "name":"Mosquitto",
+      "broker":"mosquitto." ~ edge.namespaces.iot ~ ".svc.cluster.local",
+      "port": edge.mqtt.port | string
+    } | tojson }}
 ]
