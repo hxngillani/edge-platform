@@ -34,7 +34,7 @@
         src: ../templates/clusters/dev/releases/grafana.yaml.j2
         dest: ../clusters/dev/releases/grafana.yaml
 
-    - name: Render Node-RED flows.json   # <-- moved up
+    - name: Render Node-RED flows.json
       template:
         src: ../templates/nodered/flows.json.j2
         dest: ../provisioning/nodered/flows.json
@@ -43,6 +43,11 @@
       template:
         src: ../templates/clusters/dev/releases/nodered.yaml.j2
         dest: ../clusters/dev/releases/nodered.yaml
+
+    - name: Render demo dataset (demo-publisher)
+      template:
+        src: ../templates/clusters/dev/releases/demo-dataset.yaml.j2
+        dest: ../clusters/dev/releases/demo-dataset.yaml
 
     - name: Render Ingress (optional)
       when: expose.ingress.enabled | default(false)
