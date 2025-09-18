@@ -1,43 +1,48 @@
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
-metadata: { name: bitnami, namespace: {{ edge.namespaces.iot }} }
-spec:
-  url: https://charts.bitnami.com/bitnami
----
 apiVersion: v1
 kind: ConfigMap
-metadata: { name: mosquitto-values, namespace: {{ edge.namespaces.iot }} }
+metadata:
+  name: mosquitto-config
+  namespace: {{ edge.namespaces.iot }}
 data:
-  values.yaml: |
-    service:
-      type: {{ edge.mqtt.service_type }}
-      ports: { mqtt: {{ edge.mqtt.port }} }
-    persistence:
-      enabled: true
-      size: 1Gi
-    auth:
-      enabled: {{ edge.mqtt.auth.enabled | default(false) }}
-{% if edge.mqtt.auth.enabled %}
-    existingSecret: mosquitto-auth
-{% endif %}
+  mosquitto.conf: |
+    listener 1883
+    allow_anonymous true
 ---
-apiVersion: helm.toolkit.fluxcd.io/v2
-kind: HelmRelease
-metadata: { name: mosquitto, namespace: {{ edge.namespaces.iot }} }
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+  namespace: {{ edge.namespaces.iot }}
+  labels: { app: mosquitto }
 spec:
-  interval: 5m
-  chart:
+  replicas: 1
+  selector: { matchLabels: { app: mosquitto } }
+  template:
+    metadata:
+      labels: { app: mosquitto }
     spec:
-      chart: mosquitto
-      version: 12.x.x
-      sourceRef: { kind: HelmRepository, name: bitnami, namespace: {{ edge.namespaces.iot }} }
-  valuesFrom: [ { kind: ConfigMap, name: mosquitto-values } ]
-{% if edge.mqtt.auth.enabled %}
+      containers:
+        - name: mosquitto
+          image: {{ edge.mosquitto.image | default('docker.io/eclipse-mosquitto') }}:{{ edge.mosquitto.tag | default('2') }}
+          ports:
+            - containerPort: 1883
+          volumeMounts:
+            - name: cfg
+              mountPath: /mosquitto/config
+      volumes:
+        - name: cfg
+          configMap:
+            name: mosquitto-config
 ---
 apiVersion: v1
-kind: Secret
-metadata: { name: mosquitto-auth, namespace: {{ edge.namespaces.iot }} }
-stringData:
-  mosquitto-username: {{ edge.mqtt.auth.username | default('user') }}
-  mosquitto-password: {{ edge.mqtt.auth.password | default('changeme') }}
-{% endif %}
+kind: Service
+metadata:
+  name: mosquitto
+  namespace: {{ edge.namespaces.iot }}
+  labels: { app: mosquitto }
+spec:
+  selector: { app: mosquitto }
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: 1883

@@ -1,31 +1,48 @@
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
-metadata: { name: bitnami, namespace: iot }
-spec:
-  url: https://charts.bitnami.com/bitnami
----
 apiVersion: v1
 kind: ConfigMap
-metadata: { name: mosquitto-values, namespace: iot }
+metadata:
+  name: mosquitto-config
+  namespace: iot
 data:
-  values.yaml: |
-    service:
-      type: ClusterIP
-      ports: { mqtt: 1883 }
-    persistence:
-      enabled: true
-      size: 1Gi
-    auth:
-      enabled: False
+  mosquitto.conf: |
+    listener 1883
+    allow_anonymous true
 ---
-apiVersion: helm.toolkit.fluxcd.io/v2
-kind: HelmRelease
-metadata: { name: mosquitto, namespace: iot }
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+  namespace: iot
+  labels: { app: mosquitto }
 spec:
-  interval: 5m
-  chart:
+  replicas: 1
+  selector: { matchLabels: { app: mosquitto } }
+  template:
+    metadata:
+      labels: { app: mosquitto }
     spec:
-      chart: mosquitto
-      version: 12.x.x
-      sourceRef: { kind: HelmRepository, name: bitnami, namespace: iot }
-  valuesFrom: [ { kind: ConfigMap, name: mosquitto-values } ]
+      containers:
+        - name: mosquitto
+          image: docker.io/eclipse-mosquitto:2
+          ports:
+            - containerPort: 1883
+          volumeMounts:
+            - name: cfg
+              mountPath: /mosquitto/config
+      volumes:
+        - name: cfg
+          configMap:
+            name: mosquitto-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquitto
+  namespace: iot
+  labels: { app: mosquitto }
+spec:
+  selector: { app: mosquitto }
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: 1883
