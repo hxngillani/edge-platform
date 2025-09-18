@@ -1,102 +1,52 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata:
-  name: nodered
-  namespace: iot
+metadata: { name: nodered, namespace: iot }
 spec:
   replicas: 1
-  selector:
-    matchLabels:
-      app: nodered
+  selector: { matchLabels: { app: nodered } }
   template:
-    metadata:
-      labels:
-        app: nodered
+    metadata: { labels: { app: nodered } }
     spec:
       containers:
-        - name: nodered
-          image: docker.io/nodered/node-red:latest
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 1880
-          env:
-            - name: TZ
-              value: "Europe/Rome"
-            - name: INFLUX_URL
-              value: "http://influxdb2.observability.svc.cluster.local:80"
-            - name: INFLUX_ORG
-              value: "hassan"
-            - name: INFLUX_BUCKET
-              value: "telemetry"
-            - name: INFLUX_TOKEN
-              value: "hTPNTukPssTw1iEkwdDeNH5MPz6y8SskG7ctl0YqfI6Qp0TBEoNiVM_dIA8fLXt6LRU5GEwmqKbRmqrc9YgyrA=="
-            - name: WRITE_PRECISION
-              value: "s"
-          volumeMounts:
-            - name: data
-              mountPath: /data
-            - name: flows
-              mountPath: /data/flows.json
-              subPath: flows.json
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 1880
-            initialDelaySeconds: 10
-            periodSeconds: 10
+      - name: nodered
+        image: docker.io/nodered/node-red:latest
+        ports: [{ containerPort: 1880 }]
+        env:
+          - { name: TZ, value: "Europe/Rome" }
+          - name: INFLUX_URL
+            valueFrom: { secretKeyRef: { name: influx-writer, key: INFLUX_URL } }
+          - name: INFLUX_ORG
+            valueFrom: { secretKeyRef: { name: influx-writer, key: INFLUX_ORG } }
+          - name: INFLUX_BUCKET
+            valueFrom: { secretKeyRef: { name: influx-writer, key: INFLUX_BUCKET } }
+          - name: INFLUX_TOKEN
+            valueFrom: { secretKeyRef: { name: influx-writer, key: INFLUX_TOKEN } }
+          - name: WRITE_PRECISION
+            valueFrom: { secretKeyRef: { name: influx-writer, key: WRITE_PRECISION } }
+        volumeMounts:
+          - { name: data,  mountPath: /data }
+          - { name: flows, mountPath: /data/flows.json, subPath: flows.json }
+        readinessProbe:
+          httpGet: { path: /, port: 1880 }
+          initialDelaySeconds: 10
+          periodSeconds: 10
       volumes:
         - name: data
-          persistentVolumeClaim:
-            claimName: nodered-data
+          persistentVolumeClaim: { claimName: nodered-data }
         - name: flows
-          configMap:
-            name: nodered-flows
+          configMap: { name: nodered-flows }
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
-metadata:
-  name: nodered-data
-  namespace: iot
+metadata: { name: nodered-data, namespace: iot }
 spec:
-  accessModes: [ "ReadWriteOnce" ]
-  resources:
-    requests:
-      storage: 1Gi
+  accessModes: [ ReadWriteOnce ]
+  resources: { requests: { storage: 1Gi } }
   storageClassName: local-path
 ---
 apiVersion: v1
 kind: Service
-metadata:
-  name: nodered
-  namespace: iot
+metadata: { name: nodered, namespace: iot }
 spec:
-  selector:
-    app: nodered
-  ports:
-    - name: http
-      port: 1880
-      targetPort: 1880
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nodered-flows
-  namespace: iot
-data:
-  flows.json: |
-    
-    [
-      {"id": "tab_unified", "label": "Pipeline", "type": "tab"},
-      {"id": "httpw", "method": "POST", "name": "Influx Write", "paytoqs": false, "persist": false, "proxy": "", "ret": "txt", "tls": "", "type": "http request", "url": "", "z": "tab_unified"}
-        ,{"broker": "b1", "datatype": "auto", "id": "mqtt_in_0", "name": "cpu_temp", "qos": "1", "topic": "sensors/temperature", "type": "mqtt in", "wires": [["parse_0"]], "z": "tab_unified"}
-      ,{"id": "parse_0", "type": "json", "wires": [["shape_0", "dbg_raw_0"]], "z": "tab_unified"}
-      ,{"func": "const m = msg.payload || {};\nconst v = Number(m?.fields?.value ?? m.value ?? m.value ?? msg.payload);\nlet ts = new Date();\nconst raw = m.timestamp;\nif (raw !== undefined) {\n  const n = Number(raw);\n  if (!isNaN(n)) { ts = new Date(n \u003c 1e12 ? n * 1000 : n); }\n  else { ts = new Date(raw); }\n}\nconst tags = m.tags || {};\nconst meas = \u0027cpu_temp\u0027;\nconst tagPairs = [];\nconst include = [ \u0027host\u0027, \u0027unit\u0027, \u0027zone\u0027 ];\ninclude.forEach(k =\u003e { if (tags[k]) tagPairs.push(`${k}=${String(tags[k]).replace(/[,= ]/g,\u0027_\u0027)}`); });\nconst fields = [`value=${v}`];\nconst epoch = Math.floor(ts.getTime() / 1000);\nmsg.headers = { \u0027Authorization\u0027: \u0027Token \u0027 + env.get(\u0027INFLUX_TOKEN\u0027), \u0027Content-Type\u0027:\u0027text/plain; charset=utf-8\u0027 };\nmsg.url = `${env.get(\u0027INFLUX_URL\u0027)}/api/v2/write?org=${encodeURIComponent(env.get(\u0027INFLUX_ORG\u0027))}\u0026bucket=${encodeURIComponent(env.get(\u0027INFLUX_BUCKET\u0027))}\u0026precision=${env.get(\u0027WRITE_PRECISION\u0027)}`;\nmsg.payload = `${meas}${tagPairs.length ? \u0027,\u0027 + tagPairs.join(\u0027,\u0027) : \u0027\u0027} ${fields.join(\u0027,\u0027)} ${epoch}`;\nreturn msg;", "id": "shape_0", "name": "shape", "type": "function", "wires": [["httpw", "dbg_shaped_0"]], "z": "tab_unified"}
-      ,{"active": true, "id": "dbg_raw_0", "name": "RAW cpu_temp", "type": "debug", "z": "tab_unified"}
-      ,{"active": true, "id": "dbg_shaped_0", "name": "SHAPED cpu_temp", "type": "debug", "z": "tab_unified"}
-        ,{"broker": "b1", "datatype": "auto", "id": "mqtt_in_1", "name": "hailo_temp", "qos": "1", "topic": "sensors/hailo/temp", "type": "mqtt in", "wires": [["parse_1"]], "z": "tab_unified"}
-      ,{"id": "parse_1", "type": "json", "wires": [["shape_1", "dbg_raw_1"]], "z": "tab_unified"}
-      ,{"func": "const m = msg.payload || {};\nconst v = Number(m?.fields?.value ?? m.value ?? m.value ?? msg.payload);\nlet ts = new Date();\nconst raw = m.timestamp;\nif (raw !== undefined) {\n  const n = Number(raw);\n  if (!isNaN(n)) { ts = new Date(n \u003c 1e12 ? n * 1000 : n); }\n  else { ts = new Date(raw); }\n}\nconst tags = m.tags || {};\nconst meas = \u0027hailo_temp\u0027;\nconst tagPairs = [];\nconst include = [ \u0027host\u0027, \u0027unit\u0027, \u0027zone\u0027 ];\ninclude.forEach(k =\u003e { if (tags[k]) tagPairs.push(`${k}=${String(tags[k]).replace(/[,= ]/g,\u0027_\u0027)}`); });\nconst fields = [`value=${v}`];\nconst epoch = Math.floor(ts.getTime() / 1000);\nmsg.headers = { \u0027Authorization\u0027: \u0027Token \u0027 + env.get(\u0027INFLUX_TOKEN\u0027), \u0027Content-Type\u0027:\u0027text/plain; charset=utf-8\u0027 };\nmsg.url = `${env.get(\u0027INFLUX_URL\u0027)}/api/v2/write?org=${encodeURIComponent(env.get(\u0027INFLUX_ORG\u0027))}\u0026bucket=${encodeURIComponent(env.get(\u0027INFLUX_BUCKET\u0027))}\u0026precision=${env.get(\u0027WRITE_PRECISION\u0027)}`;\nmsg.payload = `${meas}${tagPairs.length ? \u0027,\u0027 + tagPairs.join(\u0027,\u0027) : \u0027\u0027} ${fields.join(\u0027,\u0027)} ${epoch}`;\nreturn msg;", "id": "shape_1", "name": "shape", "type": "function", "wires": [["httpw", "dbg_shaped_1"]], "z": "tab_unified"}
-      ,{"active": true, "id": "dbg_raw_1", "name": "RAW hailo_temp", "type": "debug", "z": "tab_unified"}
-      ,{"active": true, "id": "dbg_shaped_1", "name": "SHAPED hailo_temp", "type": "debug", "z": "tab_unified"}
-        ,{"broker": "mosquitto.iot.svc.cluster.local", "id": "b1", "name": "Mosquitto", "port": "1883", "type": "mqtt-broker"}
-    ]
+  selector: { app: nodered }
+  ports: [{ name: http, port: 1880, targetPort: 1880 }]

@@ -13,8 +13,6 @@ data:
       organization: hassan
       bucket: telemetry
       user: hassan
-      token: hTPNTukPssTw1iEkwdDeNH5MPz6y8SskG7ctl0YqfI6Qp0TBEoNiVM_dIA8fLXt6LRU5GEwmqKbRmqrc9YgyrA==
-      password: test12345
     persistence:
       enabled: true
       size: 10Gi
@@ -30,4 +28,8 @@ spec:
       chart: influxdb2
       version: 2.x.x
       sourceRef: { kind: HelmRepository, name: influxdata, namespace: observability }
-  valuesFrom: [ { kind: ConfigMap, name: influxdb2-values } ]
+  valuesFrom:
+    - kind: ConfigMap
+      name: influxdb2-values
+    - kind: Secret
+      name: influxdb2-secrets
