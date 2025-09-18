@@ -1,0 +1,6 @@
+- hosts: all
+  gather_facts: true
+  tasks:
+    - name: Say hello from the target host
+      debug:
+        msg: "Hello from {{ inventory_hostname }} (IP: {{ ansible_default_ipv4.address | default('n/a') }})"
