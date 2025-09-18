@@ -2,3 +2,5 @@
 __pycache__/
 .venv/
 provisioning/secrets/
+/8086
+/FETCH_HEAD

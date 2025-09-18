@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-publisher
+  namespace: {{ edge.namespaces.iot }}
+  labels: { app: demo-publisher }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: demo-publisher } }
+  template:
+    metadata:
+      labels: { app: demo-publisher }
+    spec:
+      containers:
+        - name: publisher
+          image: eclipse-mosquitto:2
+          command: ["/bin/sh","-lc"]
+          args:
+            - |
+              set -eu
+              echo "Starting demo publisher -> broker: mosquitto:1883"
+              while true; do
+                TS=$(date +%s)
+                CPU=$((40 + RANDOM % 15))        # 40..54
+                HAILO=$((55 + RANDOM % 20))      # 55..74
+                mosquitto_pub -h mosquitto -p 1883 \
+                  -t sensors/temperature \
+                  -m "{\"value\": ${CPU}, \"tags\": {\"host\":\"demo\",\"unit\":\"C\",\"zone\":\"thermal_zone0\"}, \"timestamp\": ${TS} }" || true
+                mosquitto_pub -h mosquitto -p 1883 \
+                  -t sensors/hailo/temp \
+                  -m "{\"value\": ${HAILO}, \"tags\": {\"host\":\"hailo-demo\",\"unit\":\"C\",\"zone\":\"die\"}, \"timestamp\": ${TS} }" || true
+                sleep 5
+              done
+          resources:
+            requests: { cpu: "20m", memory: "32Mi" }
+            limits:   { cpu: "100m", memory: "64Mi" }
