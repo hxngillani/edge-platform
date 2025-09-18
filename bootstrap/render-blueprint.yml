@@ -1,0 +1,51 @@
+- hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../vars/main.yml
+  tasks:
+    - name: Ensure output dirs
+      file:
+        path: ../clusters/dev/{{ item }}
+        state: directory
+      loop: [ "releases" ]
+
+    - name: Render namespaces
+      template:
+        src: ../templates/clusters/dev/namespaces.yaml.j2
+        dest: ../clusters/dev/namespaces.yaml
+
+    - name: Render Kustomization
+      template:
+        src: ../templates/clusters/dev/kustomization.yaml.j2
+        dest: ../clusters/dev/kustomization.yaml
+
+    - name: Render Mosquitto
+      template:
+        src: ../templates/clusters/dev/releases/mosquitto.yaml.j2
+        dest: ../clusters/dev/releases/mosquitto.yaml
+
+    - name: Render InfluxDB
+      template:
+        src: ../templates/clusters/dev/releases/influxdb2.yaml.j2
+        dest: ../clusters/dev/releases/influxdb2.yaml
+
+    - name: Render Grafana
+      template:
+        src: ../templates/clusters/dev/releases/grafana.yaml.j2
+        dest: ../clusters/dev/releases/grafana.yaml
+
+    - name: Render Node-RED flows.json   # <-- moved up
+      template:
+        src: ../templates/nodered/flows.json.j2
+        dest: ../provisioning/nodered/flows.json
+
+    - name: Render Node-RED YAML (embeds the rendered flows.json)
+      template:
+        src: ../templates/clusters/dev/releases/nodered.yaml.j2
+        dest: ../clusters/dev/releases/nodered.yaml
+
+    - name: Render Ingress (optional)
+      when: expose.ingress.enabled | default(false)
+      template:
+        src: ../templates/clusters/dev/releases/ingress.yaml.j2
+        dest: ../clusters/dev/releases/ingress.yaml

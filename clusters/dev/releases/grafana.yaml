@@ -1,0 +1,35 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata: { name: grafana, namespace: observability }
+spec:
+  url: https://grafana.github.io/helm-charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata: { name: grafana, namespace: observability }
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: grafana
+      version: 8.x.x
+      sourceRef: { kind: HelmRepository, name: grafana, namespace: observability }
+  values:
+    adminUser: hassan
+    adminPassword: test12345
+    persistence: { enabled: true, size: 5Gi }
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: InfluxDB (Flux)
+            type: influxdb
+            access: proxy
+            url: http://influxdb2.observability.svc.cluster.local:8086
+            isDefault: true
+            jsonData:
+              version: Flux
+              organization: hassan
+              defaultBucket: telemetry
+            secureJsonData:
+              token: CHANGE_ME_TOKEN
