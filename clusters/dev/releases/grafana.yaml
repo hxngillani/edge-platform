@@ -17,17 +17,24 @@ spec:
   values:
     adminUser: hassan
     adminPassword: test12345
-    persistence: { enabled: true, size: 5Gi }
+
+    # Persist Grafana data (dashboards saved via UI). PVC can be re-enabled/disabled here.
+    persistence:
+      enabled: true
+      size: 5Gi
+
+    # Avoid init chown (often fails with local-path PVCs); use fsGroup instead.
     initChownData:
       enabled: false
-    securityContext:
+    podSecurityContext:
       fsGroup: 472
       fsGroupChangePolicy: "OnRootMismatch"
     containerSecurityContext:
       runAsUser: 472
       runAsGroup: 472
       allowPrivilegeEscalation: false
-  
+
+    # Provision the InfluxDB(Flux) datasource via values (GitOps, no UI edits).
     datasources:
       datasources.yaml:
         apiVersion: 1
@@ -43,3 +50,56 @@ spec:
               defaultBucket: telemetry
             secureJsonData:
               token: hTPNTukPssTw1iEkwdDeNH5MPz6y8SskG7ctl0YqfI6Qp0TBEoNiVM_dIA8fLXt6LRU5GEwmqKbRmqrc9YgyrA==
+
+    # Auto-provision a basic dashboard with cpu_temp & hailo_temp
+    dashboardsProvider:
+      enabled: true
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+    dashboards:
+      default:
+        edge-telemetry:
+          json: |
+            {
+              "id": null,
+              "uid": "edge-telemetry",
+              "title": "Edge Telemetry",
+              "timezone": "browser",
+              "schemaVersion": 39,
+              "version": 1,
+              "time": { "from": "now-15m", "to": "now" },
+              "panels": [
+                {
+                  "type": "timeseries",
+                  "title": "CPU Temp (mean)",
+                  "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+                  "targets": [
+                    {
+                      "query": "from(bucket: \"telemetry\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"cpu_temp\" and r._field == \"value\") |> aggregateWindow(every: 30s, fn: mean, createEmpty: false)",
+                      "refId": "A"
+                    }
+                  ],
+                  "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+                },
+                {
+                  "type": "timeseries",
+                  "title": "Hailo Temp (mean)",
+                  "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+                  "targets": [
+                    {
+                      "query": "from(bucket: \"telemetry\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"hailo_temp\" and r._field == \"value\") |> aggregateWindow(every: 30s, fn: mean, createEmpty: false)",
+                      "refId": "A"
+                    }
+                  ],
+                  "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+                }
+              ]
+            }
