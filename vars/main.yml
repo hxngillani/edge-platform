@@ -33,7 +33,7 @@ edge:
     token: hTPNTukPssTw1iEkwdDeNH5MPz6y8SskG7ctl0YqfI6Qp0TBEoNiVM_dIA8fLXt6LRU5GEwmqKbRmqrc9YgyrA==
     admin_user: hassan
     admin_password: test12345
-    port: 80          # <— add this
+    port: 80         
     size: 10Gi
 
   grafana:
