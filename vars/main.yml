@@ -30,7 +30,7 @@ edge:
   influxdb:
     org: hassan
     bucket: telemetry
-    token: CHANGE_ME_TOKEN
+    token: TEST_TOKEN_12345
     admin_user: hassan
     admin_password: test12345
     size: 10Gi

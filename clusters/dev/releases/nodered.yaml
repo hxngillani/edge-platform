@@ -29,7 +29,7 @@ spec:
             - name: INFLUX_BUCKET
               value: "telemetry"
             - name: INFLUX_TOKEN
-              value: "CHANGE_ME_TOKEN"
+              value: "TEST_TOKEN_12345"
             - name: WRITE_PRECISION
               value: "s"
           volumeMounts:
