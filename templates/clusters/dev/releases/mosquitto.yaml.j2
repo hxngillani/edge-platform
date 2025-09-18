@@ -1,0 +1,43 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata: { name: bitnami, namespace: {{ edge.namespaces.iot }} }
+spec:
+  url: https://charts.bitnami.com/bitnami
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: mosquitto-values, namespace: {{ edge.namespaces.iot }} }
+data:
+  values.yaml: |
+    service:
+      type: {{ edge.mqtt.service_type }}
+      ports: { mqtt: {{ edge.mqtt.port }} }
+    persistence:
+      enabled: true
+      size: 1Gi
+    auth:
+      enabled: {{ edge.mqtt.auth.enabled | default(false) }}
+{% if edge.mqtt.auth.enabled %}
+    existingSecret: mosquitto-auth
+{% endif %}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata: { name: mosquitto, namespace: {{ edge.namespaces.iot }} }
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: mosquitto
+      version: 12.x.x
+      sourceRef: { kind: HelmRepository, name: bitnami, namespace: {{ edge.namespaces.iot }} }
+  valuesFrom: [ { kind: ConfigMap, name: mosquitto-values } ]
+{% if edge.mqtt.auth.enabled %}
+---
+apiVersion: v1
+kind: Secret
+metadata: { name: mosquitto-auth, namespace: {{ edge.namespaces.iot }} }
+stringData:
+  mosquitto-username: {{ edge.mqtt.auth.username | default('user') }}
+  mosquitto-password: {{ edge.mqtt.auth.password | default('changeme') }}
+{% endif %}

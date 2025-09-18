@@ -1,0 +1,14 @@
+- name: Install Flux CLI
+  shell: |
+    curl -s https://fluxcd.io/install.sh | sudo bash
+  args: { creates: /usr/local/bin/flux }
+
+- name: Bootstrap Flux (token-auth expects a PAT in env if private; HTTPS if public)
+  shell: |
+    export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+    flux check --pre
+    flux bootstrap git \
+      --url={{ gitrepo_url }} \
+      --branch={{ branch }} \
+      --path={{ path }} \
+      --token-auth

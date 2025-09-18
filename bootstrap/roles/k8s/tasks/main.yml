@@ -1,0 +1,63 @@
+- name: Ensure deps
+  apt:
+    name: [curl, ca-certificates, gnupg, lsb-release]
+    state: present
+    update_cache: yes
+
+- name: Disable swap
+  command: swapoff -a
+  when: ansible_swaptotal_mb | default(0) | int > 0
+
+- name: Remove swap from fstab
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\s+swap\s+.*)$'
+    replace: '# \1'
+
+- name: Install RKE2 server
+  shell: curl -sfL https://get.rke2.io | INSTALL_RKE2_CHANNEL={{ rke2_channel }} sh -
+  args: { creates: /usr/local/bin/rke2 }
+
+- name: Configure RKE2 server
+  copy:
+    dest: /etc/rancher/rke2/config.yaml
+    content: |
+      tls-san:
+        - {{ ansible_default_ipv4.address }}
+        - {{ inventory_hostname }}
+      disable:
+        - rke2-ingress-nginx
+      cni:
+        - calico
+      cluster-cidr: {{ pod_cidr }}
+      service-cidr: {{ svc_cidr }}
+
+- name: Enable & start RKE2 server
+  systemd:
+    name: rke2-server
+    enabled: yes
+    state: started
+
+- name: Add kubectl symlink
+  file:
+    src: /var/lib/rancher/rke2/bin/kubectl
+    dest: /usr/local/bin/kubectl
+    state: link
+
+- name: Export kubeconfig to user
+  copy:
+    remote_src: yes
+    src: /etc/rancher/rke2/rke2.yaml
+    dest: /home/{{ ansible_user }}/.kube/config
+    owner: {{ ansible_user }}
+    group: {{ ansible_user }}
+    mode: '0600'
+
+- name: Wait for API server
+  shell: |
+    export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
+    kubectl get nodes
+  register: kget
+  retries: 20
+  delay: 10
+  until: kget.rc == 0

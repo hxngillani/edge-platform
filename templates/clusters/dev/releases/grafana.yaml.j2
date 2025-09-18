@@ -1,0 +1,35 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata: { name: grafana, namespace: {{ edge.namespaces.obs }} }
+spec:
+  url: https://grafana.github.io/helm-charts
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata: { name: grafana, namespace: {{ edge.namespaces.obs }} }
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: grafana
+      version: 8.x.x
+      sourceRef: { kind: HelmRepository, name: grafana, namespace: {{ edge.namespaces.obs }} }
+  values:
+    adminUser: {{ edge.grafana.admin_user }}
+    adminPassword: {{ edge.grafana.admin_password }}
+    persistence: { enabled: true, size: 5Gi }
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: InfluxDB (Flux)
+            type: influxdb
+            access: proxy
+            url: http://influxdb2.{{ edge.namespaces.obs }}.svc.cluster.local:8086
+            isDefault: true
+            jsonData:
+              version: Flux
+              organization: {{ edge.influxdb.org }}
+              defaultBucket: {{ edge.influxdb.bucket }}
+            secureJsonData:
+              token: {{ edge.influxdb.token }}

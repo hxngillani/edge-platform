@@ -1,0 +1,46 @@
+k8s:
+  rke2:
+    version: v1.28.9+rke2r1
+    token: edge-k8s-rke2
+    port: 9345
+    pod_cidr: 10.244.0.0/16
+    svc_cidr: 10.96.0.0/12
+  helm:
+    version: v3.14.4
+
+edge:
+  namespaces: { iot: iot, obs: observability }
+
+  mqtt:
+    service_type: ClusterIP
+    port: 1883
+    auth: { enabled: false, username: "", password: "" }
+
+  nodered:
+    tz: Europe/Rome
+    persist_size: 1Gi
+    topics:
+      - { name: cpu_temp,   topic: sensors/temperature,   measurement: cpu_temp,   value_field: value }
+      - { name: hailo_temp, topic: sensors/hailo/temp,    measurement: hailo_temp, value_field: value }
+    write:
+      precision: s
+      include_tags: [host, unit, zone]
+      store_jsonl: false
+
+  influxdb:
+    org: hassan
+    bucket: telemetry
+    token: CHANGE_ME_TOKEN
+    admin_user: hassan
+    admin_password: test12345
+    size: 10Gi
+
+  grafana:
+    admin_user: hassan
+    admin_password: test12345
+
+expose:
+  ingress:
+    enabled: false
+    nodered_host: nodered.local
+    grafana_host: grafana.local

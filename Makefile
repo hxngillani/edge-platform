@@ -1,10 +1,16 @@
-.PHONY: ping bootstrap status
+.PHONY: ping k8s-install generate flux status
 
 ping:
 	ansible all -m ping
 
-bootstrap:
+k8s-install:
 	ansible-playbook bootstrap/site.yml
 
+generate:
+	ansible-playbook bootstrap/render-blueprint.yml
+
+flux:
+	export KUBECONFIG=/etc/rancher/rke2/rke2.yaml; flux reconcile kustomization flux-system -n flux-system
+
 status:
-	ansible all -m command -a "uname -a"
+	export KUBECONFIG=/etc/rancher/rke2/rke2.yaml; kubectl get pods -A
