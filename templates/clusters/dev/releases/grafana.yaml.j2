@@ -18,6 +18,16 @@ spec:
     adminUser: {{ edge.grafana.admin_user }}
     adminPassword: {{ edge.grafana.admin_password }}
     persistence: { enabled: true, size: 5Gi }
+    initChownData:
+      enabled: false
+    securityContext:
+      fsGroup: 472
+      fsGroupChangePolicy: "OnRootMismatch"
+    containerSecurityContext:
+      runAsUser: 472
+      runAsGroup: 472
+      allowPrivilegeEscalation: false
+  
     datasources:
       datasources.yaml:
         apiVersion: 1
@@ -25,11 +35,11 @@ spec:
           - name: InfluxDB (Flux)
             type: influxdb
             access: proxy
-            url: http://influxdb2.{{ edge.namespaces.obs }}.svc.cluster.local:8086
+            url: http://influxdb2.{{ edge.namespaces.obs }}.svc.cluster.local:{{ edge.influxdb.port | default(80) }}
             isDefault: true
             jsonData:
               version: Flux
               organization: {{ edge.influxdb.org }}
               defaultBucket: {{ edge.influxdb.bucket }}
             secureJsonData:
-              token: {{ edge.influxdb.token }}
+              token: {{ edge.influxdb.token | default('') }}
