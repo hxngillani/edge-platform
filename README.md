@@ -1,4 +1,3 @@
-
 # Edge Platform – Reproducible IoT Data Pipeline
 
 This repository provides a **reproducible, GitOps-driven edge data pipeline**.  
@@ -28,7 +27,7 @@ With a single command, you get a fully working IoT observability stack that is *
   - [Node-RED](#node-red)
 - [📊 Loading Demo Dataset](#-loading-demo-dataset)
 - [⚙️ Customization & GitOps Workflow](#️-customization--gitops-workflow)
-- [🧹 Cleanup & Full Reset](#-cleanup--full-reset)
+- [🧹 Cleanup & Reset Options](#-cleanup--reset-options)
 - [📖 Notes](#-notes)
 
 ---
@@ -268,34 +267,79 @@ Flux will reconcile and apply your changes automatically.
 
 ---
 
-## 🧹 Cleanup & Full Reset
+## 🧹 Cleanup & Reset Options
 
-To completely remove everything (cluster, workloads, configs):
+Depending on how deep you want to clean the system, pick one of the following:
+
+### A) Remove the Application Stack (keep cluster)
 
 ```bash
-# Stop and disable RKE2 services
+# Suspend GitOps
+flux suspend kustomization flux-system -n flux-system || true
+
+# Remove workloads
+kubectl delete ns iot observability --ignore-not-found
+
+# Optionally remove Flux itself
+kubectl delete ns flux-system --ignore-not-found
+```
+
+---
+
+### B) Remove Flux Components Only
+
+```bash
+# Uninstall Flux controllers
+flux uninstall --namespace flux-system --silent || true
+
+# Delete namespace
+kubectl delete ns flux-system --ignore-not-found
+```
+
+---
+
+### C) Full Cluster Reset (RKE2 + CNI)
+
+This will **wipe Kubernetes completely** from your machine.
+
+```bash
+# Stop RKE2 services
 sudo systemctl stop rke2-server rke2-agent || true
 sudo systemctl disable rke2-server rke2-agent || true
 
-# Remove RKE2 data
-sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet
-sudo rm -rf /var/lib/cni /run/flannel
+# Unmount kubelet pod volumes (force if needed)
+mount | grep /var/lib/kubelet && \
+  sudo umount -lf $(mount | awk '/\/var\/lib\/kubelet/ {print $3}') || true
+
+# Remove data directories
+sudo rm -rf \
+  /etc/rancher/rke2 \
+  /var/lib/rancher/rke2 \
+  /var/lib/kubelet \
+  /var/lib/etcd \
+  /etc/cni \
+  /opt/cni \
+  ~/.kube/config
 
 # Remove binaries
 sudo rm -f /usr/local/bin/kubectl /usr/local/bin/crictl /usr/local/bin/ctr
 
-# Remove Flux namespaces and workloads
-kubectl delete ns flux-system observability iot --ignore-not-found
+# Remove leftover CNI links (Calico/Flannel veths)
+for i in $(ip -o link show | awk -F': ' '/^ *[0-9]+: cali|flannel/ {print $2}' | sed 's/@.*//'); do
+  echo "Deleting $i"; sudo ip link delete "$i" || true
+done
 
-# Remove kubeconfig
-sudo rm -rf ~/.kube
-
-# Remove repo clone
+# Clean up repo clone (if desired)
 cd ..
 rm -rf edge-platform
+
+# Reboot is the cleanest way to ensure everything is gone
+sudo reboot
 ```
 
-You can now redeploy from scratch using the steps above.
+---
+
+👉 After a reboot, you can start again from [Installation](#-installation) for a completely fresh setup.
 
 ---
 
@@ -304,5 +348,3 @@ You can now redeploy from scratch using the steps above.
 * Use `kubectl get pods -A` to monitor deployment status.
 * Use `kubectl logs -n <namespace> <pod>` to debug failures.
 * All components are declaratively defined — changes in Git are automatically synced.
-
----
