@@ -17,14 +17,14 @@ With a single command, you get a fully working IoT observability stack that is *
 * [📋 Prerequisites](#-prerequisites)
 
   * [Install Required Packages](#install-required-packages)
-  * [🔑 Add Flux Deploy Key](#-add-flux-deploy-key)
 * [🚀 Installation](#-installation)
 
   * [1. Clone the Repository](#1-clone-the-repository)
   * [2. Install RKE2 (Kubernetes)](#2-install-rke2-kubernetes)
   * [3. Render Kubernetes Manifests](#3-render-kubernetes-manifests)
   * [4. Bootstrap Flux (GitOps)](#4-bootstrap-flux-gitops)
-  * [5. Reconcile and Deploy](#5-reconcile-and-deploy)
+  * [5. Add Flux Deploy Key](#5-add-flux-deploy-key)
+  * [6. Reconcile and Deploy](#6-reconcile-and-deploy)
 * [🌐 Accessing Web UIs](#-accessing-web-uis)
 
   * [Grafana](#grafana)
@@ -60,45 +60,6 @@ sudo systemctl disable ufw
 
 ---
 
-### 🔑 Add Flux Deploy Key
-
-Flux uses an SSH deploy key to pull manifests from GitHub.
-You need to add this key to your repo before sync works.
-
-1. **Bootstrap Flux with SSH URL**
-
-   ```bash
-   export KUBECONFIG=~/.kube/config
-   flux bootstrap git \
-     --url=ssh://git@github.com/<YOUR_GH_USER>/edge-platform \
-     --branch=main \
-     --path=clusters/dev
-   ```
-
-   > Replace `<YOUR_GH_USER>` with your GitHub username.
-
-2. **Get the key Flux generated inside the cluster**
-
-   ```bash
-   kubectl -n flux-system get secret flux-system \
-     -o jsonpath="{.data.identity\.pub}" | base64 -d
-   ```
-
-3. **Add it to GitHub → Deploy Keys**
-
-   * Go to your repo → **Settings → Deploy keys**
-   * Click **Add deploy key**
-   * Paste the key
-   * ✅ Check **Allow write access**
-
-4. **Reconcile Flux after adding the key**
-
-   ```bash
-   flux reconcile source git flux-system -n flux-system
-   ```
-
----
-
 ## 🚀 Installation
 
 ### 1. Clone the Repository
@@ -118,7 +79,7 @@ cd edge-platform
 make k8s-install
 ```
 
-After installation, copy kubeconfig so your user can access the cluster:
+After installation, configure kubeconfig for your user:
 
 ```bash
 mkdir -p ~/.kube
@@ -158,15 +119,41 @@ flux bootstrap git \
   --path=clusters/dev
 ```
 
+This will create a **deploy key inside the cluster**, which you must add to GitHub.
+
 ---
 
-### 5. Reconcile and Deploy
+### 5. Add Flux Deploy Key
+
+Get Flux’s public key:
+
+```bash
+kubectl -n flux-system get secret flux-system \
+  -o jsonpath="{.data.identity\.pub}" | base64 -d
+```
+
+Add this to your GitHub repo:
+
+* Go to **Settings → Deploy keys**
+* Click **Add deploy key**
+* Paste the key
+* ✅ Check **Allow write access**
+
+---
+
+### 6. Reconcile and Deploy
+
+Once the key is added, tell Flux to retry:
+
+```bash
+flux reconcile source git flux-system -n flux-system
+```
+
+Then sync workloads:
 
 ```bash
 make flux
 ```
-
-This forces Flux to sync your repo immediately.
 
 ---
 
@@ -210,15 +197,12 @@ kubectl -n iot port-forward svc/nodered 1880:1880
 
 ## 📊 Loading Demo Dataset
 
-Apply demo publisher:
-
 ```bash
 kubectl apply -f clusters/dev/releases/demo-dataset.yaml
 ```
 
-You’ll see `cpu_temp` and `hailo_temp` in InfluxDB → Grafana.
-
-Remove it later:
+Check InfluxDB for `cpu_temp` and `hailo_temp` metrics.
+Remove later:
 
 ```bash
 kubectl -n iot delete deployment demo-publisher
@@ -230,7 +214,7 @@ kubectl -n iot delete deployment demo-publisher
 
 Edit `vars/main.yml` and re-render.
 
-Example override:
+Example:
 
 ```yaml
 edge:
@@ -309,4 +293,3 @@ sudo reboot
 * `kubectl get pods -A` → check status
 * `kubectl logs -n <ns> <pod>` → debug
 * All workloads are GitOps-managed by Flux
-
