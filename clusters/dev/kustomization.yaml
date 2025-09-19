@@ -6,3 +6,4 @@ resources:
   - releases/nodered.yaml
   - releases/influxdb2.yaml
   - releases/grafana.yaml
+  - releases/influx-writer-secret.yaml
