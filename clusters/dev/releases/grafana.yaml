@@ -1,24 +1,25 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
-metadata: { name: grafana, namespace: observability }
+metadata:
+  name: grafana
+  namespace: observability
 spec:
   url: https://grafana.github.io/helm-charts
 ---
-apiVersion: helm.toolkit.fluxcd.io/v2
-kind: HelmRelease
-metadata: { name: grafana, namespace: observability }
-spec:
-  interval: 5m
-  chart:
-    spec:
-      chart: grafana
-      version: 8.x.x
-      sourceRef: { kind: HelmRepository, name: grafana, namespace: observability }
-  values:
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-secret
+  namespace: observability
+stringData:
+  values.yaml: |
     adminUser: hassan
-    persistence: { enabled: true, size: 5Gi }
-    securityContext: { fsGroup: 472, fsGroupChangePolicy: "OnRootMismatch" }
-    containerSecurityContext: { runAsUser: 472, runAsGroup: 472, allowPrivilegeEscalation: false }
+    adminPassword: test12345
+
+    persistence:
+      enabled: true
+      size: 5Gi
+
     datasources:
       datasources.yaml:
         apiVersion: 1
@@ -32,6 +33,29 @@ spec:
               version: Flux
               organization: hassan
               defaultBucket: telemetry
+            secureJsonData:
+              token: default-dev-token
+
+    sidecar:
+      dashboards:
+        enabled: true
+        searchNamespace: ALL
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: observability
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: grafana
+      version: 8.x.x
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: observability
   valuesFrom:
     - kind: Secret
-      name: grafana-datasource-secrets
+      name: grafana-secret

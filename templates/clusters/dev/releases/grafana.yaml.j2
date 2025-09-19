@@ -1,19 +1,26 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
-metadata: { name: grafana, namespace: {{ edge.namespaces.obs }} }
+metadata:
+  name: grafana
+  namespace: {{ edge.namespaces.obs }}
 spec:
   url: https://grafana.github.io/helm-charts
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
-metadata: { name: grafana, namespace: {{ edge.namespaces.obs }} }
+metadata:
+  name: grafana
+  namespace: {{ edge.namespaces.obs }}
 spec:
   interval: 5m
   chart:
     spec:
       chart: grafana
       version: 8.x.x
-      sourceRef: { kind: HelmRepository, name: grafana, namespace: {{ edge.namespaces.obs }} }
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: {{ edge.namespaces.obs }}
   values:
     adminUser: {{ edge.grafana.admin_user }}
     adminPassword: {{ edge.grafana.admin_password }}
@@ -22,17 +29,6 @@ spec:
       enabled: true
       size: 5Gi
 
-    initChownData:
-      enabled: false
-    podSecurityContext:
-      fsGroup: 472
-      fsGroupChangePolicy: "OnRootMismatch"
-    containerSecurityContext:
-      runAsUser: 472
-      runAsGroup: 472
-      allowPrivilegeEscalation: false
-
-    # === Datasource (InfluxDB Flux) ===
     datasources:
       datasources.yaml:
         apiVersion: 1
@@ -40,80 +36,16 @@ spec:
           - name: InfluxDB (Flux)
             type: influxdb
             access: proxy
-            url: http://influxdb2.{{ edge.namespaces.obs }}.svc.cluster.local:{{ edge.influxdb.port | default(80) }}
+            url: http://influxdb2.{{ edge.namespaces.obs }}.svc.cluster.local:{{ edge.influxdb.port | default(8086) }}
             isDefault: true
             jsonData:
               version: Flux
               organization: {{ edge.influxdb.org }}
               defaultBucket: {{ edge.influxdb.bucket }}
             secureJsonData:
-              token: {{ edge.influxdb.token | default('') }}
+              token: {{ edge.influxdb.token | default("default-dev-token") }}
 
-    # === Load dashboards from ConfigMaps via sidecar ===
     sidecar:
       dashboards:
         enabled: true
         searchNamespace: ALL
-        folder: /var/lib/grafana/dashboards/default
-        provider:
-          name: 'default'
-          org: 1
-          folder: ''
-          type: file
-          disableDelete: false
-          allowUiUpdates: true
-
-    # The chart expects "dashboardProviders" (plural), not dashboardsProvider
-    dashboardProviders:
-      dashboardproviders.yaml:
-        apiVersion: 1
-        providers:
-          - name: 'default'
-            orgId: 1
-            folder: ''
-            type: file
-            disableDeletion: false
-            editable: true
-            options:
-              path: /var/lib/grafana/dashboards/default
-
-    # This creates a ConfigMap labeled grafana_dashboard=1 that the sidecar will load.
-    dashboards:
-      default:
-        edge-telemetry:
-          json: |
-            {
-              "id": null,
-              "uid": "edge-telemetry",
-              "title": "Edge Telemetry",
-              "timezone": "browser",
-              "schemaVersion": 39,
-              "version": 1,
-              "time": { "from": "now-15m", "to": "now" },
-              "panels": [
-                {
-                  "type": "timeseries",
-                  "title": "CPU Temp (mean)",
-                  "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
-                  "targets": [
-                    {
-                      "query": "from(bucket: \"telemetry\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"cpu_temp\" and r._field == \"value\") |> aggregateWindow(every: 30s, fn: mean, createEmpty: false)",
-                      "refId": "A"
-                    }
-                  ],
-                  "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
-                },
-                {
-                  "type": "timeseries",
-                  "title": "Hailo Temp (mean)",
-                  "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
-                  "targets": [
-                    {
-                      "query": "from(bucket: \"telemetry\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"hailo_temp\" and r._field == \"value\") |> aggregateWindow(every: 30s, fn: mean, createEmpty: false)",
-                      "refId": "A"
-                    }
-                  ],
-                  "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
-                }
-              ]
-            }

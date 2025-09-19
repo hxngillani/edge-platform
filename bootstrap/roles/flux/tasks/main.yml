@@ -1,14 +1,19 @@
+# Ensure Flux CLI is present (keep as-is)
 - name: Install Flux CLI
   shell: |
     curl -s https://fluxcd.io/install.sh | sudo bash
   args: { creates: /usr/local/bin/flux }
 
-- name: Bootstrap Flux (token-auth expects a PAT in env if private; HTTPS if public)
+# Public repo bootstrap (no PAT)
+- name: Install Flux from public repo (HTTPS, no token)
   shell: |
+    set -euo pipefail
     export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
     flux check --pre
-    flux bootstrap git \
-      --url={{ gitrepo_url }} \
-      --branch={{ branch }} \
-      --path={{ path }} \
-      --token-auth
+    # Create ns and install controllers
+    kubectl create ns flux-system --dry-run=client -o yaml | kubectl apply -f -
+    kubectl apply -f {{ playbook_dir }}/../clusters/dev/flux-system/gotk-components.yaml
+    # Make sure your GitRepository URL is HTTPS and no secretRef
+    kubectl apply -f {{ playbook_dir }}/../clusters/dev/flux-system/gotk-sync.yaml
+  args:
+    executable: /bin/bash

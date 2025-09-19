@@ -22,16 +22,9 @@ spec:
           env:
             - name: TZ
               value: "{{ edge.nodered.tz }}"
-            - name: INFLUX_URL
-              value: "http://influxdb2.{{ edge.namespaces.obs }}.svc.cluster.local:{{ edge.influxdb.port }}"
-            - name: INFLUX_ORG
-              value: "{{ edge.influxdb.org }}"
-            - name: INFLUX_BUCKET
-              value: "{{ edge.influxdb.bucket }}"
-            - name: INFLUX_TOKEN
-              value: "{{ edge.influxdb.token }}"
-            - name: WRITE_PRECISION
-              value: "{{ edge.nodered.write.precision }}"
+          envFrom:
+            - secretRef:
+                name: influx-writer
           volumeMounts:
             - name: data
               mountPath: /data

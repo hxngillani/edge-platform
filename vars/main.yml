@@ -30,15 +30,15 @@ edge:
   influxdb:
     org: hassan
     bucket: telemetry
-    token: hTPNTukPssTw1iEkwdDeNH5MPz6y8SskG7ctl0YqfI6Qp0TBEoNiVM_dIA8fLXt6LRU5GEwmqKbRmqrc9YgyrA==
-    admin_user: hassan
-    admin_password: test12345
-    port: 80         
+    admin_user: hassan         
+    admin_password: test12345    
+    token: default-dev-token     
+    port: 80
     size: 10Gi
 
   grafana:
     admin_user: hassan
-    admin_password: test12345
+    admin_password: test12345    
 
 expose:
   ingress:

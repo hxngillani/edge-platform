@@ -1,33 +1,27 @@
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
-metadata: { name: influxdata, namespace: {{ edge.namespaces.obs }} }
-spec:
-  url: https://helm.influxdata.com/
----
-apiVersion: v1
-kind: ConfigMap
-metadata: { name: influxdb2-values, namespace: {{ edge.namespaces.obs }} }
-data:
-  values.yaml: |
-    adminUser:
-      organization: {{ edge.influxdb.org }}
-      bucket: {{ edge.influxdb.bucket }}
-      user: {{ edge.influxdb.admin_user }}
-      token: {{ edge.influxdb.token }}
-      password: {{ edge.influxdb.admin_password }}
-    persistence:
-      enabled: true
-      size: {{ edge.influxdb.size }}
-    service: { type: ClusterIP }
----
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
-metadata: { name: influxdb2, namespace: {{ edge.namespaces.obs }} }
+metadata:
+  name: influxdb2
+  namespace: {{ edge.namespaces.obs }}
 spec:
   interval: 5m
   chart:
     spec:
       chart: influxdb2
       version: 2.x.x
-      sourceRef: { kind: HelmRepository, name: influxdata, namespace: {{ edge.namespaces.obs }} }
-  valuesFrom: [ { kind: ConfigMap, name: influxdb2-values } ]
+      sourceRef:
+        kind: HelmRepository
+        name: influxdata
+        namespace: {{ edge.namespaces.obs }}
+  values:
+    adminUser:
+      organization: {{ edge.influxdb.org }}
+      bucket: {{ edge.influxdb.bucket }}
+      user: {{ edge.influxdb.admin_user }}
+      token: {{ edge.influxdb.token | default("default-dev-token") }}
+      password: {{ edge.influxdb.admin_password }}
+    persistence:
+      enabled: true
+      size: {{ edge.influxdb.size }}
+    service:
+      type: ClusterIP

@@ -33,6 +33,7 @@
         - {{ inventory_hostname }}
       disable:
         - rke2-ingress-nginx
+        - rke2-metrics-server
       cni:
         - calico
       cluster-cidr: {{ pod_cidr }}
