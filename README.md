@@ -72,6 +72,14 @@ cd edge-platform
 make k8s-install
 ```
 
+# Copy kubeconfig to your user
+mkdir -p ~/.kube
+sudo cp /etc/rancher/rke2/rke2.yaml ~/.kube/config
+sudo chown $(id -u):$(id -g) ~/.kube/config
+
+# Verify access
+kubectl get nodes
+
 This will:
 
 * Install RKE2 (lightweight Kubernetes)
@@ -219,10 +227,12 @@ You have two good options:
 # Make a fork on GitHub first, then:
 export KUBECONFIG=/etc/rancher/rke2/rke2.yaml
 flux bootstrap git \
-  --url=https://github.com/<YOUR_GH_USER>/edge-platform \
+  --url=ssh://git@github.com/hxngillani/edge-platform \
   --branch=main \
   --path=clusters/dev
 ```
+
+> Make sure your SSH key (`~/.ssh/id_rsa.pub` or `~/.ssh/id_ed25519.pub`) is added to your GitHub account under **Settings → SSH and GPG keys**.
 
 Now repeat the steps in the “Recommended” path above (edit → `make generate` → commit → push → `make flux`).
 

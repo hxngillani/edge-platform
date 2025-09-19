@@ -54,3 +54,8 @@
       template:
         src: ../templates/clusters/dev/releases/ingress.yaml.j2
         dest: ../clusters/dev/releases/ingress.yaml
+
+    - name: Render Influx writer Secret
+      template:
+        src: ../provisioning/nodered/influx-writer-secret.yaml
+        dest: ../clusters/dev/releases/influx-writer-secret.yaml

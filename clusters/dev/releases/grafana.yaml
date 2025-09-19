@@ -49,4 +49,3 @@ spec:
       dashboards:
         enabled: true
         searchNamespace: ALL
-        

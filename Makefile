@@ -10,7 +10,6 @@ generate:
 	ansible-playbook bootstrap/render-blueprint.yml
 
 flux:
-	export KUBECONFIG=/etc/rancher/rke2/rke2.yaml; flux reconcile kustomization flux-system -n flux-system
-
+	flux reconcile kustomization flux-system -n flux-system
 status:
 	export KUBECONFIG=/etc/rancher/rke2/rke2.yaml; kubectl get pods -A
