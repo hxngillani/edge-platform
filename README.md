@@ -17,7 +17,7 @@ With a single command, you get a fully working IoT observability stack that is *
 * [📋 Prerequisites](#-prerequisites)
 
   * [Install Required Packages](#install-required-packages)
-  * [Generate & Add SSH Key](#-generate--add-ssh-key-if-not-already-set-up)
+  * [🔑 Add Flux Deploy Key](#-add-flux-deploy-key)
 * [🚀 Installation](#-installation)
 
   * [1. Clone the Repository](#1-clone-the-repository)
@@ -51,7 +51,7 @@ sudo apt update
 sudo apt install -y git ansible curl ca-certificates gnupg lsb-release
 ```
 
-### Disable Firewall (Recommended for Local Dev)
+### Disable Firewall (recommended for local dev)
 
 ```bash
 sudo systemctl stop ufw
@@ -60,45 +60,42 @@ sudo systemctl disable ufw
 
 ---
 
-### 🔑 Generate & Add SSH Key (if not already set up)
+### 🔑 Add Flux Deploy Key
 
-Flux works best with SSH authentication. Before bootstrapping, make sure your GitHub account has an SSH key.
+Flux uses an SSH deploy key to pull manifests from GitHub.
+You need to add this key to your repo before sync works.
 
-1. **Check if you already have a key:**
+1. **Bootstrap Flux with SSH URL**
 
-```bash
-ls ~/.ssh/id_rsa.pub ~/.ssh/id_ed25519.pub
-```
+   ```bash
+   export KUBECONFIG=~/.kube/config
+   flux bootstrap git \
+     --url=ssh://git@github.com/<YOUR_GH_USER>/edge-platform \
+     --branch=main \
+     --path=clusters/dev
+   ```
 
-If one of these files exists, you already have a key.
+   > Replace `<YOUR_GH_USER>` with your GitHub username.
 
-2. **Generate a new key (if none exists):**
+2. **Get the key Flux generated inside the cluster**
 
-```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"
-```
+   ```bash
+   kubectl -n flux-system get secret flux-system \
+     -o jsonpath="{.data.identity\.pub}" | base64 -d
+   ```
 
-Press **Enter** to accept defaults. This creates `~/.ssh/id_ed25519.pub`.
+3. **Add it to GitHub → Deploy Keys**
 
-3. **Copy the public key:**
+   * Go to your repo → **Settings → Deploy keys**
+   * Click **Add deploy key**
+   * Paste the key
+   * ✅ Check **Allow write access**
 
-```bash
-cat ~/.ssh/id_ed25519.pub
-```
+4. **Reconcile Flux after adding the key**
 
-4. **Add it to GitHub:**
-
-* Go to [GitHub → Settings → SSH and GPG keys](https://github.com/settings/keys)
-* Click **New SSH key**, paste the key, and save.
-
-5. **Test the connection:**
-
-```bash
-ssh -T git@github.com
-```
-
-You should see:
-`Hi <your-username>! You've successfully authenticated.`
+   ```bash
+   flux reconcile source git flux-system -n flux-system
+   ```
 
 ---
 
@@ -111,7 +108,7 @@ git clone git@github.com:hxngillani/edge-platform.git
 cd edge-platform
 ```
 
-👉 Note: we use **SSH URL** (`git@github.com:...`) instead of HTTPS.
+👉 Use the **SSH URL** (`git@github.com:...`) so it matches the Flux setup.
 
 ---
 
@@ -121,7 +118,7 @@ cd edge-platform
 make k8s-install
 ```
 
-After installation, copy the kubeconfig so your user can access the cluster:
+After installation, copy kubeconfig so your user can access the cluster:
 
 ```bash
 mkdir -p ~/.kube
@@ -129,7 +126,7 @@ sudo cp /etc/rancher/rke2/rke2.yaml ~/.kube/config
 sudo chown $(id -u):$(id -g) ~/.kube/config
 ```
 
-Verify access:
+Verify:
 
 ```bash
 kubectl get nodes
@@ -161,8 +158,6 @@ flux bootstrap git \
   --path=clusters/dev
 ```
 
-This connects your cluster to the GitHub repo so that changes are automatically applied.
-
 ---
 
 ### 5. Reconcile and Deploy
@@ -171,13 +166,13 @@ This connects your cluster to the GitHub repo so that changes are automatically 
 make flux
 ```
 
-This forces Flux to pull the latest manifests and apply them immediately.
+This forces Flux to sync your repo immediately.
 
 ---
 
 ## 🌐 Accessing Web UIs
 
-Use **port-forwarding** to access dashboards locally.
+Use **port-forwarding** to open UIs locally.
 
 ### Grafana
 
@@ -185,12 +180,8 @@ Use **port-forwarding** to access dashboards locally.
 kubectl -n observability port-forward svc/grafana 3000:80
 ```
 
-➡️ Open **[Grafana Dashboard](http://localhost:3000)**
-
-**Credentials:**
-
-* Username: `hassan`
-* Password: `test12345`
+➡️ [http://localhost:3000](http://localhost:3000)
+**Credentials:** `hassan / test12345`
 
 ---
 
@@ -200,14 +191,10 @@ kubectl -n observability port-forward svc/grafana 3000:80
 kubectl -n observability port-forward svc/influxdb2 8086:80
 ```
 
-➡️ Open **[InfluxDB UI](http://localhost:8086)**
-
-**Credentials:**
-
-* Username: `hassan`
-* Password: `test12345`
-* Org: `hassan`
-* Bucket: `telemetry`
+➡️ [http://localhost:8086](http://localhost:8086)
+**Credentials:** `hassan / test12345`
+Org: `hassan`
+Bucket: `telemetry`
 
 ---
 
@@ -217,19 +204,21 @@ kubectl -n observability port-forward svc/influxdb2 8086:80
 kubectl -n iot port-forward svc/nodered 1880:1880
 ```
 
-➡️ Open **[Node-RED UI](http://localhost:1880)**
+➡️ [http://localhost:1880](http://localhost:1880)
 
 ---
 
 ## 📊 Loading Demo Dataset
 
+Apply demo publisher:
+
 ```bash
 kubectl apply -f clusters/dev/releases/demo-dataset.yaml
 ```
 
-You should see `cpu_temp` and `hailo_temp` metrics in InfluxDB, and Grafana dashboards will populate automatically.
+You’ll see `cpu_temp` and `hailo_temp` in InfluxDB → Grafana.
 
-Remove the demo workload later:
+Remove it later:
 
 ```bash
 kubectl -n iot delete deployment demo-publisher
@@ -239,9 +228,9 @@ kubectl -n iot delete deployment demo-publisher
 
 ## ⚙️ Customization & GitOps Workflow
 
-You’ll edit `vars/main.yml` and re-render manifests.
+Edit `vars/main.yml` and re-render.
 
-### Example: override InfluxDB settings
+Example override:
 
 ```yaml
 edge:
@@ -263,15 +252,13 @@ git push origin main
 make flux
 ```
 
-Flux will reconcile automatically.
+Flux applies automatically.
 
 ---
 
 ## 🧹 Cleanup & Reset Options
 
-Pick the level of cleanup you need.
-
-### A) Remove Application Stack (keep cluster)
+### A) Remove app stack (keep cluster)
 
 ```bash
 flux suspend kustomization flux-system -n flux-system || true
@@ -279,29 +266,22 @@ kubectl delete ns iot observability --ignore-not-found
 kubectl delete ns flux-system --ignore-not-found
 ```
 
----
-
-### B) Remove Flux Components Only
+### B) Remove Flux only
 
 ```bash
 flux uninstall --namespace flux-system --silent || true
 kubectl delete ns flux-system --ignore-not-found
 ```
 
----
-
-### C) Full Cluster Reset (RKE2 + CNI)
+### C) Full cluster reset
 
 ```bash
-# Stop services
 sudo systemctl stop rke2-server rke2-agent || true
 sudo systemctl disable rke2-server rke2-agent || true
 
-# Unmount kubelet pod volumes
 mount | grep /var/lib/kubelet && \
   sudo umount -lf $(mount | awk '/\/var\/lib\/kubelet/ {print $3}') || true
 
-# Remove data directories
 sudo rm -rf \
   /etc/rancher/rke2 \
   /var/lib/rancher/rke2 \
@@ -311,19 +291,14 @@ sudo rm -rf \
   /opt/cni \
   ~/.kube/config
 
-# Remove binaries
 sudo rm -f /usr/local/bin/kubectl /usr/local/bin/crictl /usr/local/bin/ctr
 
-# Remove CNI links
 for i in $(ip -o link show | awk -F': ' '/^ *[0-9]+: cali|flannel/ {print $2}' | sed 's/@.*//'); do
-  echo "Deleting $i"; sudo ip link delete "$i" || true
+  sudo ip link delete "$i" || true
 done
 
-# Optional: remove repo
 cd ..
 rm -rf edge-platform
-
-# Reboot for a fully clean slate
 sudo reboot
 ```
 
@@ -331,6 +306,7 @@ sudo reboot
 
 ## 📖 Notes
 
-* Use `kubectl get pods -A` to check deployment status.
-* Use `kubectl logs -n <namespace> <pod>` for debugging.
-* All components are GitOps-managed — changes in Git are applied automatically.
+* `kubectl get pods -A` → check status
+* `kubectl logs -n <ns> <pod>` → debug
+* All workloads are GitOps-managed by Flux
+
